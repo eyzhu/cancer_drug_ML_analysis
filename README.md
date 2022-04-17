@@ -5,8 +5,8 @@
 ## Table of Contents
 
 * [Overview](#overview)
-* [Drug analysis](#drug analysis)
-* [Exploratory analysis](#confirm analysis)
+* [Drug analysis](#drug-analysis)
+* [Exploratory analysis](#confirm-analysis)
 * [Contributors](#contributors)
 
 ## Overview
