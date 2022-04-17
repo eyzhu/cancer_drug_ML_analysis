@@ -1,11 +1,12 @@
 # Cancer drug machine learning analysis 
 
+<img align="center" src="images/ML_fig1.jpg">
+
 ## Table of Contents
-<img align="right" src="images/ML_fig1.jpg" width="600" height="320">
 
 * [Overview](#overview)
-* [Drug analysis] (#drug analysis)
-* [Exploratory analysis] (#confirm analysis)
+* [Drug analysis](#drug analysis)
+* [Exploratory analysis](#confirm analysis)
 * [Contributors](#contributors)
 
 ## Overview
