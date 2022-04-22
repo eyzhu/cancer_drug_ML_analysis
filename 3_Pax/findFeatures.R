@@ -3,12 +3,16 @@ library(edgeR)
 library(KEGGREST)
 library(WGCNA)
 library(Boruta)
-library(randomForest)
 library(e1071)
 library(limma)
 library(caret)
 library(glmnet)
 library(Rcpp)
+library(STRINGdb)
+library(rstudioapi)
+library(stringr)
+
+setwd(dirname(getActiveDocumentContext()$path))  
 
 hgPwayGenes = read.csv("../common_files/kegg_genes.csv", header = FALSE, stringsAsFactors = FALSE)
 hgPwayGenes2 = hgPwayGenes[,2]
@@ -17,7 +21,7 @@ names(hgPwayGenes2) = hgPwayGenes[,1]
 cellLineArray =
     read.csv("../common_files/sanger1018_brainarray_ensemblgene_rma.txt", sep="\t")
 
-details = read.csv("../Cell_Lines_Details.csv")
+details = read.csv("../common_files/Cell_Lines_Details.csv")
 
 sensCL = c()
 resistCL = c() 
@@ -25,6 +29,7 @@ resistCL = c()
 details[,1] = sub("_SKIN", "", details[,1])
 details[,1] = gsub("-", "", details[,1])
 
+## AUCs from ctrpV2
 currAUC = read.csv("paxAuc.csv", stringsAsFactors=FALSE)
 
 currAUCCMSIC = currAUC[currAUC[,1] %in% details[,1], ]
@@ -171,8 +176,8 @@ sortedPathTscores = sort(pathSTAT_simple)
 
 names(sortedPathTscores) = sub("\\..*", "", names(sortedPathTscores))  
 
-upperThresh = quantile(sortedPathTscores,0.9) 
-lowerThresh = quantile(sortedPathTscores,0.1) 
+upperThresh = quantile(sortedPathTscores,0.8) 
+lowerThresh = quantile(sortedPathTscores,0.2) 
 
 wantPaths =
     c(names(which(sortedPathTscores > upperThresh)),
@@ -192,22 +197,16 @@ ppp = cbind(dscrip_Tscores, finalPaths)
 ############################## A2. find gene modules ############################
 ################################################################################
 
-exprMatName = rownames(expr)
-hgPwayGenes2 = hgPwayGenes2[hgPwayGenes2 %in% exprMatName] 
-pwayNames = names(hgPwayGenes2)
-
 allGenes = c()
 
 for (pway in rownames(ppp)){
-  ## pway = pppOut[1,1]
   currGenes = unique(hgPwayGenes2[names(hgPwayGenes2)==pway])
   allGenes = unique(c(allGenes, currGenes))
-  ## if(length(allGenes)>=geneN){break}
 }
 
-string_db = STRINGdb$new()
-mapped = string_db$map(data.frame("genes" = allGenes), "genes")
-
+string_db = STRINGdb$new(version = "10", species=9606)
+df = data.frame("genes" = allGenes)
+mapped = string_db$map(df, "genes")
 mapped = mapped[!is.na(mapped[,2]), ]
 
 strAdjMat = matrix(0, nrow(mapped), nrow(mapped))
@@ -215,36 +214,40 @@ rownames(strAdjMat) = mapped[,2]
 colnames(strAdjMat) = mapped[,2]
 
 for ( ind in 1:nrow(mapped) ){
-  
+
   flag = FALSE
   strID = mapped[ind,2]
-  
+
   tryCatch( string_db$get_neighbors(strID), error=function(e) flag<<-TRUE)
-  
+
   if(flag){ next }
-  
+
   interactors = string_db$get_neighbors(strID)
   interactions = string_db$get_interactions(c(strID, interactors))
-  
+
   targetInts = interactions[ interactions[, "from"] == strID, c("to", "combined_score") ]
   targetInts2 = interactions[ interactions[, "to"] == strID, c("from", "combined_score") ]
-  
+
   ## remove genes that are not in expression dataset
   targetInts = targetInts[targetInts[,1] %in% rownames(strAdjMat), ]
   targetInts2 = targetInts2[targetInts2[,1] %in% rownames(strAdjMat), ]
-  
+
   qq = targetInts[,1] %in% targetInts[,2]
-  
+
   if (any(qq)){print("duplicates detected")}
-  
-  strAdjMat[ strID, targetInts[,1] ] = targetInts[, 2] 
+
+  strAdjMat[ strID, targetInts[,1] ] = targetInts[, 2]
   strAdjMat[ strID, targetInts2[,1] ] = targetInts2[, 2]
-  
+
 }
 
 dupGene = which( duplicated(colnames(strAdjMat)) )
 
 if(length(dupGene)>0){strAdjMat = strAdjMat[-dupGene, -dupGene]}
+
+## this file contains the strAdjMat and importGenes used in the paper's analysis
+load("pax_all.Rdata")
+################################################################################
 
 strAdjMat = strAdjMat/1000
 diag(strAdjMat) = rep(1, ncol(strAdjMat))
@@ -265,14 +268,9 @@ module.colours = labels2colors(modules)
 gene_Names = colnames(strAdjMat)
 gene_Names_hg = mapped[match(gene_Names, mapped[,2]) ,1]
 
-hgAdjMat = strAdjMat
-colnames(hgAdjMat) = gene_Names_hg
-rownames(hgAdjMat) = gene_Names_hg
-
 kIM = intramodularConnectivity(strAdjMat, module.colours, scaleByMax=T)
 rownames(kIM) = gene_Names_hg
 kIM = kIM[!is.nan(kIM[,2]), ]
-orderedKIM = kIM[order(kIM[,2], decreasing = TRUE), ]
 
 module_names = as.character(modules)
 names(gene_Names_hg) = module_names 
@@ -288,21 +286,26 @@ y = factor(y)
 set.seed(54328)
 featList = c()
 
-for (iter in 1:10){
+# i of ten was used in paper
+for (iter in 1:1){
   print(iter)
   ## set.seed(sample(1:1000,1))
   importFeatures = c()
   for(ind in 1:length(unqMods)){
     
     currMod = unqMods[ind]
+    
+    currMod = unqMods[1]
+    
     currGenes = gene_Names_hg[names(gene_Names_hg)==currMod]
+    currGenes = currGenes[currGenes %in% rownames(expr)]
     currEx = expr[currGenes,]
     currEx = t(currEx)
     bortOut = Boruta(currEx, y)
     importGenes = names(bortOut$finalDecision[bortOut$finalDecision=="Confirmed"]) 
     if (length(importGenes) == 0){next}
-    importFeatures = rbind(importFeatures, cbind(importGenes, as.character(currMod) ))
-    
+      importFeatures = rbind(importFeatures, cbind(importGenes, as.character(currMod) ))
+    print(ind)
   }
   
   featList = c(featList, list(importFeatures[,1]))
@@ -311,10 +314,14 @@ for (iter in 1:10){
 importGenes = Reduce(intersect, featList)
 importGenes = as.character( importFeatures[,1] )
 
+## this file contains the strAdjMat and importGenes used for paper's analysis
+load("pax_all.Rdata")
+###########
+
 ############################## A4. SVM-RFE #####################################
 ################################################################################
 
-source("../common_files/msvmRFE_LOO.R")
+source("./cancer_drug_ML_analysis/common_files/msvmRFE_LOO.R")
 
 sensCLInd = !restCLInd
 
@@ -374,15 +381,17 @@ names(finalPaths) = unique(wantMods)
 
 currNormExpr = expr
 
-tResult = apply(currNormExpr, 1, function(x) t.test(x[sensCLInd], x[restCLInd])) 
-tResult_simple = unlist(lapply(tResult, function(x) x$p.value) ) 
+tResult = apply(currNormExpr, 1, function(x) t.test(x[sensCLInd], x[restCLInd]))
+tResult_simple = unlist(lapply(tResult, function(x) x$p.value) )
 
 tResult_simple_cor = p.adjust(tResult_simple, method = "holm")
 length(tResult_simple_cor[tResult_simple_cor<0.1])
 
 sigGenes = names(tResult_simple_cor[tResult_simple_cor<0.1])
 
-ensmblENTZ = getBM(attributes = c("hgnc_symbol", "entrezgene_id"), 
+# ensembl=useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl")
+
+ensmblENTZ = getBM(attributes = c("hgnc_symbol", "entrezgene_id"),
                    filters = "hgnc_symbol", values = sigGenes, mart = ensembl)
 
 paths = goana(ensmblENTZ[,2])
@@ -399,8 +408,7 @@ qq = head(paths2Want[order(paths2Want[,5]),], 20)
 outDat = data.frame(GOID=rownames(qq), TERM=qq[,"Term"], pVal=qq[,"P.DE"] )
 colnames(outDat)[3] = "p-value"
 
-write.csv(outDat, quote = FALSE, row.names = FALSE, file="correlation_GPX4.csv")
-
+write.csv(outDat, quote = FALSE, row.names = FALSE, file="correlation.csv")
 
 ######################### B2. Linear model genes ###############################
 ################################################################################ 
@@ -408,7 +416,7 @@ write.csv(outDat, quote = FALSE, row.names = FALSE, file="correlation_GPX4.csv")
 wantNames = sub("X", "", colnames(expr))
 wantCCLEnames = details[match(wantNames, details[,2]), 1]
 
-aucMatch = GPX4auc[match(wantCCLEnames,GPX4auc[,1]),2]
+aucMatch = currAUC[match(wantCCLEnames,currAUC[,1]),2]
 
 # set.seed(42)
 control <- trainControl(method = "cv",
@@ -443,8 +451,13 @@ paths2 = paths[paths[,"Ont"]=="BP",]
 
 padj = p.adjust(paths2[,"P.DE"],method = "holm")
 
-paths2[,"P.DE"] = padj
+# paths2[,"P.DE"] = padj
 head(paths2[order(paths2[,5]),])
+paths2Want = paths2[paths2[,"P.DE"]<0.1,]
+
+save(sigGenes, file="en_gpx.Rdata")
+###
+ensembl=useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
 ensmblENTZ = getBM(attributes = c("hgnc_symbol", "entrezgene_id"), 
                    filters = "hgnc_symbol", values = sigGenes, mart = ensembl)
@@ -460,17 +473,19 @@ qq = head(paths2Want[order(paths2Want[,5]),], 20)
 outDat = data.frame(GOID=rownames(qq), TERM=qq[,"Term"], pVal=qq[,"P.DE"] )
 colnames(outDat)[3] = "p-value"
 
-write.csv(outDat, quote = FALSE, row.names = FALSE, file="linear_model_GPX4.csv")
+write.csv(outDat, quote = FALSE, row.names = FALSE, file="enPAX.csv")
 
 ############################## C. Visualization ################################
 ################################################################################
+
+topGenes = as.character(top.features[1:4,1])
 
 processList = list()
 
 for(topGene in topGenes){
   wantMod = names(gene_Names_hg)[gene_Names_hg == topGene]
   modgeneNames = gene_Names_hg[names(gene_Names_hg)==wantMod]
-  hgncGenes = getBM(filters= "hgnc_symbol", attributes= c( "entrezgene_id", "hgnc_symbol"), values=modgeneNames, mart=human)
+  hgncGenes = getBM(filters= "hgnc_symbol", attributes= c( "entrezgene_id", "hgnc_symbol"), values=modgeneNames, mart=ensembl)
   erPathways = goana(hgncGenes[,1], FDR = 0.05)
   erPathways = erPathways[order(erPathways[,"P.DE"]),]
   erPathways = erPathways[erPathways[,"Ont"]=="BP", ]
@@ -484,9 +499,6 @@ processList[[4]][,"P.DE"] = p.adjust(processList[[4]][,"P.DE"])
 
 processListFinal = processList
 
-topGenes = as.character(top.features[1:4,1])
-gene_Names_hg[gene_Names_hg %in% topGenes]
-
 p1 = data.frame(processListFinal[[1]][1:5, ], mod="7")
 p2 = data.frame(processListFinal[[2]][1:5, ], mod="39")
 p3 = data.frame(processListFinal[[3]][1:5, ], mod="37")
@@ -497,16 +509,19 @@ allPaths = rbind(p1, p2, p3, p4)
 allPaths[,"P.DE"] = -1*log10(allPaths[,"P.DE"])
 allPaths[,"Term"] = str_wrap(allPaths[,"Term"], width = 40)
 allPaths[,"Term"] = factor(allPaths[,"Term"], levels=rev(allPaths[,"Term"]) )
+allPaths[,"mod"] = factor(allPaths[,"mod"], levels=c("7", "39", "37", "19") )
 
-pdf(file="Pathways.pdf", width=11, height=15)
-  ggplot(allPaths, aes(mod, Term)) + geom_point(aes(size = DE, fill = P.DE), shape = 21) +
-    scale_fill_viridis_c() +
-    scale_size_continuous(range=c(4, 14), breaks=c(10,15,30,45)) + 
-    labs( x ="Module", y = "Pathway", fill="-log10(p)", size="# of enriched genes") + theme_bw() +
-    theme(axis.text.x = element_text(size=20),
-          axis.text.y = element_text(size=15, lineheight = 0.78),
-          axis.title.x=element_text(size=26), 
-          axis.title.y=element_text(size=26),
-          legend.text=element_text(size=20),
-          legend.title=element_text(size=22))
+pdf(file="Pathways_pax_all.pdf", width=11, height=15)
+
+ggplot(allPaths, aes(mod, Term)) + geom_point(aes(size = DE, fill = P.DE), shape = 21) +
+  scale_fill_viridis_c() +
+  scale_size_continuous(range=c(4, 14), breaks=c(10,15,30,45)) + 
+  labs( x ="Module", y = "Pathway", fill="-log10(p)", size="# of enriched genes") + theme_bw() +
+  theme(axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size=15, lineheight = 0.78),
+        axis.title.x=element_text(size=26), 
+        axis.title.y=element_text(size=26),
+        legend.text=element_text(size=20),
+        legend.title=element_text(size=22))
+
 dev.off()
