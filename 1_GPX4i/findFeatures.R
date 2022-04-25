@@ -322,7 +322,7 @@ load("GPX4.Rdata")
 ############################## A4. SVM-RFE #####################################
 ################################################################################
 
-source("./cancer_drug_ML_analysis/common_files/msvmRFE_LOO.R")
+source("../common_files/msvmRFE_LOO.R")
 
 sensCLInd = !restCLInd
 
