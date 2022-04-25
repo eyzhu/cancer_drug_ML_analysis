@@ -10,6 +10,8 @@ library(glmnet)
 library(Rcpp)
 library(STRINGdb)
 library(rstudioapi)    
+library(hexbin)
+library(stringr)
 
 setwd(dirname(getActiveDocumentContext()$path))  
 
@@ -320,7 +322,7 @@ load("pax_no_blood.Rdata")
 ############################## A4. SVM-RFE #####################################
 ################################################################################
 
-source("./cancer_drug_ML_analysis/common_files/msvmRFE_LOO.R")
+source("../common_files/msvmRFE_LOO.R")
 
 sensCLInd = !restCLInd
 

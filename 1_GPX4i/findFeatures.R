@@ -11,6 +11,7 @@ library(Rcpp)
 library(STRINGdb)
 library(rstudioapi)
 library(hexbin)
+library(stringr)
 
 setwd(dirname(getActiveDocumentContext()$path))  
 
