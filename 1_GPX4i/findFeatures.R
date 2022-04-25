@@ -12,6 +12,8 @@ library(STRINGdb)
 library(rstudioapi)
 library(hexbin)
 
+setwd(dirname(getActiveDocumentContext()$path))  
+
 hgPwayGenes = read.csv("../common_files/kegg_genes.csv", header = FALSE, stringsAsFactors = FALSE)
 hgPwayGenes2 = hgPwayGenes[,2]
 names(hgPwayGenes2) = hgPwayGenes[,1]
