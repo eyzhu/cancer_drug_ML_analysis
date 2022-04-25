@@ -19,7 +19,7 @@ names(hgPwayGenes2) = hgPwayGenes[,1]
 cellLineArray =
     read.csv("../common_files/sanger1018_brainarray_ensemblgene_rma.txt", sep="\t")
 
-details = read.csv("../Cell_Lines_Details.csv")
+details = read.csv("../common_files/Cell_Lines_Details.csv")
 
 sensCL = c()
 resistCL = c() 
