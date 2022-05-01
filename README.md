@@ -11,7 +11,8 @@
 
 ## Overview
 * Raw scripts/Pipeline for analysis performed in manuscript __*Machine learning approach informs biology of cancer drug response*__.
-* Analysis can be replicated by script provided in folders named after each drug
+* Analysis can be replicated by script provided in folders named after each drug.
+* R version 3.5.1 was used for the analysis.
 
 ## Drug analysis
 1. First download array expression data and place this file in the common_files folder. As of 4/17/2022, There's no live link to the file I used, so I uploaded it to dropbox. The file was orginally obtained from ftp://ftp.sanger.ac.uk/pub/project/cancerrxgene/releases/current_release/sanger1018_brainarray_ensemblgene_rma.txt.gz. 
