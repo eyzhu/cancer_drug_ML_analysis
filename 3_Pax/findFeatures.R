@@ -62,6 +62,8 @@ ensmblHG =
     getBM(attributes = c("hgnc_symbol", "ensembl_gene_id"),
                  filters = "ensembl_gene_id", values = rownames(expr), mart = ensembl)
 
+load("ensIDs.Rdata")
+
 if(any(ensmblHG[,1]=="")){
     ensmblHG = ensmblHG[-which(ensmblHG[,1]==""), ] 
 }
@@ -246,14 +248,13 @@ dupGene = which( duplicated(colnames(strAdjMat)) )
 
 if(length(dupGene)>0){strAdjMat = strAdjMat[-dupGene, -dupGene]}
 
-## this file contains the strAdjMat and importGenes used in the paper's analysis
-load("pax_all.Rdata")
-################################################################################
-
 strAdjMat = strAdjMat/1000
 diag(strAdjMat) = rep(1, ncol(strAdjMat))
 strAdjMat[ strAdjMat>=0.4 ] = 1
 strAdjMat[ strAdjMat<0.4 ] = 0
+
+## this file contains the strAdjMat and importGenes used in the paper's analysis
+load("pax_all.Rdata")
 
 ## compute TOM matrix
 dissTOM = TOMdist(strAdjMat, TOMType = "unsigned", TOMDenom = "min", verbose = 1, indent = 0)
@@ -323,14 +324,13 @@ load("pax_all.Rdata")
 ################################################################################
 
 source("../common_files/msvmRFE_LOO.R")
-
+# expr = qq
 sensCLInd = !restCLInd
 
 y = rep("res", ncol(expr))
 y[sensCLInd] = "sens"
 y = factor(y)
 
-set.seed(455)
 featList = c()
 
 ## revert symbols
@@ -346,6 +346,9 @@ nrows = nrow(trainMat)
 folds = rep(1:nfold, len=nrows)[sample(nrows)]
 folds = lapply(1:nfold, function(x) which(folds == x))
 
+# use folds in the paper
+load("folds_pax.Rdata")
+
 results = lapply(folds, svmRFE.wrap, trainMat, k=1, halve.above=100)
 
 ### uncomment code below to estimate error for a given number of features
@@ -354,7 +357,6 @@ results = lapply(folds, svmRFE.wrap, trainMat, k=1, halve.above=100)
 # errors = sapply(featsweep, function(x) ifelse(is.null(x), NA, x$error))
 
 top.features = WriteFeatures(results, trainMat, save=F)
-
 ## find pathways that are enriched
 wantMods = names(gene_Names_hg[gene_Names_hg %in% top.features[1:4,1]])
 wantGenes = gene_Names_hg[names(gene_Names_hg) %in% wantMods]

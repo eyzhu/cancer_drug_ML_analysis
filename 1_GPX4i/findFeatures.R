@@ -65,6 +65,8 @@ if(any(ensmblHG[,1]=="")){
     ensmblHG = ensmblHG[-which(ensmblHG[,1]==""), ] 
 }
 
+# load("ensIDs.Rdata")
+
 ensmblHGunq = unique(ensmblHG[,2])
 unqENSmat = ensmblHG[match(ensmblHGunq, ensmblHG[,2]), ]
 
@@ -247,14 +249,13 @@ dupGene = which( duplicated(colnames(strAdjMat)) )
 
 if(length(dupGene)>0){strAdjMat = strAdjMat[-dupGene, -dupGene]}
 
-## this file contains the strAdjMat and importGenes used in the paper's analysis
-load("GPX4.Rdata")
-################################################################################
-
 strAdjMat = strAdjMat/1000
 diag(strAdjMat) = rep(1, ncol(strAdjMat))
 strAdjMat[ strAdjMat>=0.4 ] = 1
 strAdjMat[ strAdjMat<0.4 ] = 0
+
+## this file contains the strAdjMat and importGenes used in the paper's analysis
+load("GPX4.Rdata")
 
 ## compute TOM matrix
 dissTOM = TOMdist(strAdjMat, TOMType = "unsigned", TOMDenom = "min", verbose = 1, indent = 0)
@@ -331,7 +332,6 @@ y = rep("res", ncol(expr))
 y[sensCLInd] = "sens"
 y = factor(y)
 
-set.seed(455)
 featList = c()
 
 ## revert symbols
@@ -347,6 +347,9 @@ nrows = nrow(trainMat)
 folds = rep(1:nfold, len=nrows)[sample(nrows)]
 folds = lapply(1:nfold, function(x) which(folds == x))
 
+## use folds from the paper analysis
+load("folds_GPX4.Rdata")
+
 results = lapply(folds, svmRFE.wrap, trainMat, k=1, halve.above=100)
 
 ### uncomment code below to estimate error for a given number of features
@@ -355,6 +358,7 @@ results = lapply(folds, svmRFE.wrap, trainMat, k=1, halve.above=100)
 # errors = sapply(featsweep, function(x) ifelse(is.null(x), NA, x$error))
 
 top.features = WriteFeatures(results, trainMat, save=F)
+head(top.features)
 
 ## find pathways that are enriched
 wantMods = names(gene_Names_hg[gene_Names_hg %in% top.features[1:4,1]])
@@ -508,6 +512,20 @@ pdf(file="Pathways.pdf", width=9, height=10)
           axis.title.y=element_text(size=26),
           legend.text=element_text(size=20),
           legend.title=element_text(size=22))
+dev.off()
+
+# modules Hexagon plot
+modules = unique(names(gene_Names_hg))
+totModuleGenes = table(names(gene_Names_hg))
+totImportGenes = table(names(gene_Names_hg[gene_Names_hg %in% importGenes]))
+totModuleGenes = totModuleGenes[names(totImportGenes)]
+
+df <- data.frame(totGenes = as.numeric(totImportGenes), totModules = as.numeric(totModuleGenes))
+
+pdf(file="modules_hex.pdf", width=4.2, height=3)
+ggplot(df, aes(totModules, totGenes)) +
+  geom_hex(bins = 6) + scale_fill_gradient(low="palegreen2",high="darkgreen", breaks = c(2,5,8)) + labs( x ="Total # of Genes", y = "Relevant # of Genes", fill = "# of Modules") + theme_bw() +
+  theme(axis.text = element_text(size=10), axis.title.x=element_text(size=14), axis.title.y=element_text(size=14))
 dev.off()
 
 topFeatMods = gene_Names_hg[match(top.features[,"FeatureName"], gene_Names_hg)]  ##top.features[,"FeatureName"]

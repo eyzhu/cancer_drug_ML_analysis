@@ -114,6 +114,8 @@ if(any(ensmblHG[,1]=="")){
   ensmblHG = ensmblHG[-which(ensmblHG[,1]==""), ] 
 }
 
+load("ensIDs.Rdata")
+
 ensmblHGunq = unique(ensmblHG[,2])
 unqENSmat = ensmblHG[match(ensmblHGunq, ensmblHG[,2]), ]
 
@@ -293,14 +295,13 @@ dupGene = which( duplicated(colnames(strAdjMat)) )
 
 if(length(dupGene)>0){strAdjMat = strAdjMat[-dupGene, -dupGene]}
 
-## this file contains the strAdjMat and importGenes used in the paper's analysis
-load("VEM.Rdata")
-################################################################################
-
 strAdjMat = strAdjMat/1000
 diag(strAdjMat) = rep(1, ncol(strAdjMat))
 strAdjMat[ strAdjMat>=0.4 ] = 1
 strAdjMat[ strAdjMat<0.4 ] = 0
+
+## this file contains the strAdjMat and importGenes used in the paper's analysis
+load("VEM.Rdata")
 
 ## compute TOM matrix
 dissTOM = TOMdist(strAdjMat, TOMType = "unsigned", TOMDenom = "min", verbose = 1, indent = 0)
@@ -377,7 +378,6 @@ y = rep("res", ncol(expr))
 y[sensCLInd] = "sens"
 y = factor(y)
 
-set.seed(455)
 featList = c()
 
 ## revert symbols
@@ -392,6 +392,9 @@ nfold = 10
 nrows = nrow(trainMat)
 folds = rep(1:nfold, len=nrows)[sample(nrows)]
 folds = lapply(1:nfold, function(x) which(folds == x))
+
+# use folds from the paper
+load("folds_VEM.Rdata")
 
 results = lapply(folds, svmRFE.wrap, trainMat, k=1, halve.above=100)
 
